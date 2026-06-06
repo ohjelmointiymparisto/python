@@ -1,21 +1,608 @@
 <!DOCTYPE html>
 <html lang="fi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Python 2 (Trinket)</title>
-        <style>
-            body {
-                height: 100vh;
-                margin: 0;
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python</title>
+    <script type="text/javascript" src="https://unpkg.com/brython@3.13.0/brython.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/brython@3.13.0/brython_stdlib.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/@supabase/supabase-js@2.43.0/dist/umd/supabase.js"></script>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #code-section {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        #button-area {
+            display: flex;
+            gap: 0;
+            height: 40px;
+        }
+        button {
+            flex: 1;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 0;
+            cursor: pointer;
+            transition: background 0.2s;
+            background-color: #ffffff;
+            color: #333;
+            border-right: 1px solid #ccc;
+        }
+
+        button:hover {
+            background-color: #f0f0f0;
+        }
+        #container {
+            display: flex;
+            gap: 0;
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+        }
+        textarea {
+            flex: 1;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 0;
+            resize: none;
+            box-shadow: none;
+        }
+        #divider {
+            width: 6px;
+            height: 100%;
+            background-color: #ddd;
+            cursor: col-resize;
+            user-select: none;
+            transition: background-color 0.2s;
+            flex: 0 0 6px;
+        }
+        #divider:hover {
+            background-color: #999;
+        }
+        #turtle-div {
+            width: 100%;
+            flex: 1;
+            border: 1px solid #ccc;
+            border-radius: 0;
+            background-color: #ffffff;
+            box-shadow: none;
+            overflow: hidden;
+            display: flex;
+        }
+        #turtle-div svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #output-area {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            height: 100%;
+        }
+        #console-output {
+            flex: 1;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 0;
+            background-color: #f5f5f5;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #333;
+        }
+        .share-url-container {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            text-align: center;
+            margin: 0;
+            padding: 10px 20px;
+            background: #fff;
+            border-top: 1px solid #ccc;
+            z-index: 10;
+        }
+        #share-status {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        #share-url {
+            font-weight: bold;
+            color: #2980b9;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body onload="brython()">
+    <div id="container">
+        <div id="code-section">
+            <div id="button-area">
+                <button id="run-btn" onclick="runPython()">Suorita</button>
+                <button id="share-btn" type="button" onclick="shareSnippet()">Jaa (kopioi linkki)</button>
+            </div>
+            <textarea id="code" placeholder="Koodi tähän..."></textarea>
+        </div>
+        <div id="divider"></div>
+        <div id="output-area">
+            <div id="turtle-div"></div>
+            <div id="console-output"></div>
+        </div>
+    </div>
+    <div class="share-url-container">
+        <p id="share-status"></p>
+        <span id="share-url"></span>
+    </div>
+    <script>
+        const SUPABASE_URL = "https://dedytnfmdjtfabqxkjcv.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_xR2GR31GRTy7rkEpWGVsZw_lxLAgNfO";
+        
+        const supabaseClient = window.supabase ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+        let isCodeRunning = false;
+        let pendingRunTimer = null;
+        let turtleCompletionToken = 0;
+        let completionWatchdog = null;
+
+        function generateShareId() {
+            const bytes = new Uint8Array(16);
+            window.crypto.getRandomValues(bytes);
+
+            let value = 0n;
+            for (const byte of bytes) {
+                value = (value << 8n) | BigInt(byte & 31);
             }
-            iframe {
-                display: block;
+
+            return value.toString(36).padStart(30, '0').slice(-30);
+        }
+
+        window.__markTurtleComplete = function() {
+            isCodeRunning = false;
+            pendingRunTimer = null;
+            if (completionWatchdog !== null) {
+                clearTimeout(completionWatchdog);
+                completionWatchdog = null;
             }
-        </style>
-    </head>
-    <body>
-        <h1>Valitettavasti alkuperäinen Trinket-palvelu ei ole enää saatavilla. Toisen tason ylläpitämää instanssia voi käyttää muun muassa alla, mutta jakamistoiminto ei toimi. Lisäksi alkukrääsä täytyy manuaalisesti tyhjentää. Vaihtoehtoisesti voi käyttää Abicodea (<a href="https://abicode.abitti.fi" target="_blank">https://abicode.abitti.fi</a>). Siinä ei kuitenkaan myöskään ole jakamistoimintoa, eikä siinä toimi kilpikonnagrafiikka.</h1>
-        <iframe src="https://trinket.strivemath.org/embed/python/08cafe84ea20" width="100%" height="100%" frameborder="0" marginwidth="0" marginheight="0" allowfullscreen></iframe>
-    </body>
+            setRunButtonState(false);
+        };
+
+        window.__armTurtleCompletion = function() {
+            const token = turtleCompletionToken;
+            const turtleDiv = document.getElementById('turtle-div');
+
+            if (!turtleDiv) {
+                window.__markTurtleComplete();
+                return;
+            }
+
+            const finishIfIdle = () => {
+                if (!isCodeRunning || token !== turtleCompletionToken) {
+                    return true;
+                }
+
+                if (turtleDiv.querySelector('animate, animateMotion, animateTransform')) {
+                    return false;
+                }
+
+                window.__markTurtleComplete();
+                return true;
+            };
+
+            window.setTimeout(() => {
+                if (finishIfIdle()) {
+                    return;
+                }
+
+                const observer = new MutationObserver(() => {
+                    if (finishIfIdle()) {
+                        observer.disconnect();
+                    }
+                });
+
+                observer.observe(turtleDiv, { childList: true, subtree: true });
+
+                let checks = 0;
+                const poll = () => {
+                    if (token !== turtleCompletionToken || !isCodeRunning) {
+                        observer.disconnect();
+                        return;
+                    }
+
+                    if (finishIfIdle()) {
+                        observer.disconnect();
+                        return;
+                    }
+
+                    checks += 1;
+                    if (checks < 200) {
+                        window.setTimeout(poll, 50);
+                    }
+                };
+
+                window.setTimeout(poll, 50);
+            }, 0);
+        };
+
+        function setRunButtonState(running) {
+            const runButton = document.getElementById('run-btn');
+            if (!runButton) {
+                return;
+            }
+
+            runButton.textContent = running ? 'Pysäytä' : 'Suorita';
+            runButton.dataset.state = running ? 'running' : 'idle';
+        }
+
+        function hasTurtleAnimation() {
+            const turtleDiv = document.getElementById('turtle-div');
+            return !!(turtleDiv && turtleDiv.querySelector('animate, animateMotion, animateTransform'));
+        }
+
+        function scheduleIdleCompletionCheck(token) {
+            window.setTimeout(() => {
+                if (!isCodeRunning || token !== turtleCompletionToken) {
+                    return;
+                }
+
+                if (!hasTurtleAnimation()) {
+                    window.__markTurtleComplete();
+                }
+            }, 300);
+        }
+
+        function scheduleCompletionWatchdog(token, startedAt) {
+            if (completionWatchdog !== null) {
+                clearTimeout(completionWatchdog);
+            }
+
+            const tick = () => {
+                if (!isCodeRunning || token !== turtleCompletionToken) {
+                    completionWatchdog = null;
+                    return;
+                }
+
+                if (hasTurtleAnimation()) {
+                    completionWatchdog = null;
+                    return;
+                }
+
+                if (Date.now() - startedAt >= 700) {
+                    completionWatchdog = null;
+                    window.__markTurtleComplete();
+                    return;
+                }
+
+                completionWatchdog = window.setTimeout(tick, 100);
+            };
+
+            completionWatchdog = window.setTimeout(tick, 100);
+        }
+
+        function stopPython() {
+            window.__turtleStopRequested = true;
+            turtleCompletionToken += 1;
+            isCodeRunning = false;
+
+            if (completionWatchdog !== null) {
+                clearTimeout(completionWatchdog);
+                completionWatchdog = null;
+            }
+
+            if (pendingRunTimer !== null) {
+                clearTimeout(pendingRunTimer);
+                pendingRunTimer = null;
+            }
+
+            const turtleDiv = document.getElementById('turtle-div');
+            if (turtleDiv) {
+                turtleDiv.innerHTML = '';
+            }
+
+            const consoleOutput = document.getElementById('console-output');
+            if (consoleOutput) {
+                consoleOutput.innerHTML += '<br><span style="color:#666">Pysäytetty.</span><br>';
+            }
+
+            setRunButtonState(false);
+            window.__markTurtleComplete();
+        }
+
+        function runPython() {
+            if (isCodeRunning) {
+                stopPython();
+                return;
+            }
+
+            isCodeRunning = true;
+            turtleCompletionToken += 1;
+            window.__turtleStopRequested = false;
+            setRunButtonState(true);
+
+            const turtleDiv = document.getElementById('turtle-div');
+            turtleDiv.innerHTML = '';
+            document.getElementById('console-output').innerHTML = '';
+            
+            const code = document.getElementById('code').value;
+            const turtleWidth = Math.max(1, turtleDiv.clientWidth || 600);
+            const turtleHeight = Math.max(1, turtleDiv.clientHeight || 600);
+            
+            const turtleCode = `
+import sys
+from browser import document
+from browser import window
+import turtle
+
+class PageOutput:
+    def __init__(self, element_id):
+        self.element_id = element_id
+    
+    def write(self, text):
+        el = document[self.element_id]
+        el.innerHTML += str(text).replace('\\n', '<br>')
+    
+    def flush(self):
+        pass
+
+sys.stdout = PageOutput('console-output')
+
+turtle.set_defaults(
+    canvwidth=${turtleWidth},
+    canvheight=${turtleHeight},
+    turtle_canvas_wrapper=document['turtle-div']
+)
+
+_BaseTurtle = turtle.Turtle
+
+class SafeTurtle(_BaseTurtle):
+    def _stopped(self):
+        return getattr(window, '__turtleStopRequested', False)
+
+    def _guard(self, method_name, *args, **kwargs):
+        if self._stopped():
+            return None
+        return getattr(_BaseTurtle, method_name)(self, *args, **kwargs)
+
+    def forward(self, *args, **kwargs):
+        return self._guard('forward', *args, **kwargs)
+
+    fd = forward
+
+    def backward(self, *args, **kwargs):
+        return self._guard('backward', *args, **kwargs)
+
+    bk = backward
+
+    def left(self, *args, **kwargs):
+        return self._guard('left', *args, **kwargs)
+
+    lt = left
+
+    def right(self, *args, **kwargs):
+        return self._guard('right', *args, **kwargs)
+
+    rt = right
+
+    def goto(self, *args, **kwargs):
+        return self._guard('goto', *args, **kwargs)
+
+    setpos = goto
+    setposition = goto
+
+    def circle(self, *args, **kwargs):
+        return self._guard('circle', *args, **kwargs)
+
+    def dot(self, *args, **kwargs):
+        return self._guard('dot', *args, **kwargs)
+
+    def write(self, *args, **kwargs):
+        return self._guard('write', *args, **kwargs)
+
+    def color(self, *args, **kwargs):
+        return self._guard('color', *args, **kwargs)
+
+    def pencolor(self, *args, **kwargs):
+        return self._guard('pencolor', *args, **kwargs)
+
+    def fillcolor(self, *args, **kwargs):
+        return self._guard('fillcolor', *args, **kwargs)
+
+    def width(self, *args, **kwargs):
+        return self._guard('width', *args, **kwargs)
+
+    pensize = width
+
+    def penup(self, *args, **kwargs):
+        return self._guard('penup', *args, **kwargs)
+
+    pu = penup
+    up = penup
+
+    def pendown(self, *args, **kwargs):
+        return self._guard('pendown', *args, **kwargs)
+
+    pd = pendown
+    down = pendown
+
+    def begin_fill(self, *args, **kwargs):
+        return self._guard('begin_fill', *args, **kwargs)
+
+    def end_fill(self, *args, **kwargs):
+        return self._guard('end_fill', *args, **kwargs)
+
+    def home(self, *args, **kwargs):
+        return self._guard('home', *args, **kwargs)
+
+    def speed(self, *args, **kwargs):
+        return self._guard('speed', *args, **kwargs)
+
+    def clear(self, *args, **kwargs):
+        return self._guard('clear', *args, **kwargs)
+
+turtle.Turtle = SafeTurtle
+turtle.Pen = SafeTurtle
+
+_orig_done = turtle.done
+
+def _done_wrapper():
+    if getattr(window, '__turtleStopRequested', False):
+        return None
+    result = _orig_done()
+    if hasattr(window, '__armTurtleCompletion'):
+        window.__armTurtleCompletion()
+    return result
+
+turtle.done = _done_wrapper
+`;
+            
+            try {
+                console.log('Suoritetaan');
+                
+                const fullCode = turtleCode + '\n' + code + '\nturtle.done()';
+                
+                const script = document.createElement('script');
+                script.type = 'text/python';
+                script.textContent = fullCode;
+                document.body.appendChild(script);
+                
+                pendingRunTimer = setTimeout(() => {
+                    try {
+                        const startedAt = Date.now();
+                        brython({debug: 0});
+                        scheduleIdleCompletionCheck(turtleCompletionToken);
+                        scheduleCompletionWatchdog(turtleCompletionToken, startedAt);
+                    } catch (err) {
+                        console.error('Virhe:', err);
+                        const consoleOutput = document.getElementById('console-output');
+                        if (consoleOutput) {
+                            consoleOutput.innerHTML += '<span style="color:red">Virhe: ' + err + '</span><br>';
+                        }
+                        window.__markTurtleComplete();
+                    } finally {
+                        pendingRunTimer = null;
+                    }
+                }, 100);
+                
+                console.log('Ajastettu');
+            } catch(err) {
+                isCodeRunning = false;
+                setRunButtonState(false);
+                console.error("Virhe:", err);
+                document.getElementById('console-output').innerHTML += '<span style="color:red">Virhe: ' + err + '</span><br>';
+            }
+        }
+
+        async function shareSnippet() {
+            const codeText = document.getElementById('code').value;
+            const statusEl = document.getElementById('share-status');
+            const urlEl = document.getElementById('share-url');
+            
+            if (!codeText.trim()) return alert("Kirjoita koodi ennen jakamista!");
+            if (!supabaseClient) {
+                alert('Ei voitu tallentaa.');
+                return;
+            }
+
+            const uniqueId = generateShareId();
+
+            statusEl.innerText = "Jaetaan...";
+            urlEl.innerText = "";
+
+            const { error } = await supabaseClient
+                .from('snippets')
+                .insert([{ tunnus: uniqueId, code: codeText }]);
+
+            if (error) {
+                console.error(error);
+                statusEl.innerText = "Virhe tallentaessa.";
+                alert('Ei voitu tallentaa. Kurkista konsoliin.');
+                return;
+            }
+
+            const shareLink = window.location.origin + window.location.pathname + "?id=" + uniqueId;
+            statusEl.innerText = "Jakolinkki luotu! Kopioi:";
+            urlEl.innerText = shareLink;
+
+            try {
+                await navigator.clipboard.writeText(shareLink);
+                statusEl.innerText = "Jakolinkki kopioitu leikepöydälle.";
+            } catch (clipboardError) {
+                console.warn('Tallennus onnistui, muttei voitu kopioida:', clipboardError);
+            }
+        }
+
+        async function loadSnippetFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const snippetId = urlParams.get('id');
+
+            if (snippetId) {
+                if (!supabaseClient) {
+                    alert('Ei voitu tallentaa.');
+                    return;
+                }
+
+                const codeArea = document.getElementById('code');
+                codeArea.value = "# Ladataan...";
+                
+                const { data, error } = await supabaseClient
+                    .from('snippets')
+                    .select('code') 
+                    .eq('tunnus', snippetId)
+                    .single();
+
+                if (error || !data) {
+                    alert("Tallennetta ei löytynyt.");
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    codeArea.value = "";
+                } else {
+                    codeArea.value = data.code;
+                }
+            }
+        }
+
+        loadSnippetFromURL();
+
+        const divider = document.getElementById('divider');
+        const container = document.getElementById('container');
+        const codeSection = document.getElementById('code-section');
+        const outputArea = document.getElementById('output-area');
+        let isResizing = false;
+
+        divider.addEventListener('mousedown', () => {
+            isResizing = true;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            const containerRect = container.getBoundingClientRect();
+            const newCodeWidth = e.clientX - containerRect.left;
+            const containerWidth = containerRect.width;
+            const dividerWidth = 6;
+
+            if (newCodeWidth > 200 && newCodeWidth < containerWidth - 200) {
+                codeSection.style.flex = `0 0 ${newCodeWidth}px`;
+                divider.style.flex = `0 0 ${dividerWidth}px`;
+                outputArea.style.flex = `1`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isResizing = false;
+        });
+    </script>
+</body>
 </html>
