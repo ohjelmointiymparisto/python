@@ -1,1 +1,1 @@
-Trinket-ohjelmointiympäristö Pythonia varten upotettuna sivulla mm. matematiikan ohjelmointijaksoon.
+Python-ohjelmointiympäristö mm. matematiikan ohjelmointijaksoon.
