@@ -34,12 +34,25 @@
             border-radius: 0;
             cursor: pointer;
             transition: background 0.2s;
-            background-color: #ffffff;
             color: #333;
             border-right: 1px solid #ccc;
         }
-
-        button:hover {
+        #run-btn {
+            background-color: #ffffff;
+        }
+        #run-btn:hover {
+            background-color: #f0f0f0;
+        }
+        #stop-btn {
+            background-color: #ffffff;
+        }
+        #stop-btn:hover {
+            background-color: #f0f0f0;
+        }
+        #share-btn {
+            background-color: #ffffff;
+        }
+        #share-btn:hover {
             background-color: #f0f0f0;
         }
         #container {
@@ -53,7 +66,7 @@
         textarea {
             flex: 1;
             font-family: 'Courier New', Courier, monospace;
-            font-size: 14px;
+            font-size: 16px;
             padding: 15px;
             border: 1px solid #ccc;
             border-radius: 0;
@@ -102,7 +115,7 @@
             overflow-y: auto;
             padding: 10px;
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 16px;
             color: #333;
         }
         .share-url-container {
@@ -134,6 +147,7 @@
         <div id="code-section">
             <div id="button-area">
                 <button id="run-btn" onclick="runPython()">Suorita</button>
+                <button id="stop-btn" onclick="stopPython()">Pysäytä</button>
                 <button id="share-btn" type="button" onclick="shareSnippet()">Jaa (kopioi linkki)</button>
             </div>
             <textarea id="code" placeholder="Koodi tähän..."></textarea>
@@ -145,7 +159,7 @@
         </div>
     </div>
     <div class="share-url-container">
-        <p id="share-status"></p>
+        <p id="share-status">&copy; <a href="https://toivo.pages.dev" target="_blank">Toivo Muukkonen</a> 2026</p>
         <span id="share-url"></span>
     </div>
     <script>
@@ -153,154 +167,21 @@
         const SUPABASE_ANON_KEY = "sb_publishable_xR2GR31GRTy7rkEpWGVsZw_lxLAgNfO";
         
         const supabaseClient = window.supabase ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-        let isCodeRunning = false;
         let pendingRunTimer = null;
-        let turtleCompletionToken = 0;
-        let completionWatchdog = null;
+function generateShareId() {
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
 
-        function generateShareId() {
-            const bytes = new Uint8Array(16);
-            window.crypto.getRandomValues(bytes);
+    let value = 0n;
+    for (const byte of bytes) {
+        value = (value << 8n) | BigInt(byte);
+    }
 
-            let value = 0n;
-            for (const byte of bytes) {
-                value = (value << 8n) | BigInt(byte & 31);
-            }
-
-            return value.toString(36).padStart(30, '0').slice(-30);
-        }
-
-        window.__markTurtleComplete = function() {
-            isCodeRunning = false;
-            pendingRunTimer = null;
-            if (completionWatchdog !== null) {
-                clearTimeout(completionWatchdog);
-                completionWatchdog = null;
-            }
-            setRunButtonState(false);
-        };
-
-        window.__armTurtleCompletion = function() {
-            const token = turtleCompletionToken;
-            const turtleDiv = document.getElementById('turtle-div');
-
-            if (!turtleDiv) {
-                window.__markTurtleComplete();
-                return;
-            }
-
-            const finishIfIdle = () => {
-                if (!isCodeRunning || token !== turtleCompletionToken) {
-                    return true;
-                }
-
-                if (turtleDiv.querySelector('animate, animateMotion, animateTransform')) {
-                    return false;
-                }
-
-                window.__markTurtleComplete();
-                return true;
-            };
-
-            window.setTimeout(() => {
-                if (finishIfIdle()) {
-                    return;
-                }
-
-                const observer = new MutationObserver(() => {
-                    if (finishIfIdle()) {
-                        observer.disconnect();
-                    }
-                });
-
-                observer.observe(turtleDiv, { childList: true, subtree: true });
-
-                let checks = 0;
-                const poll = () => {
-                    if (token !== turtleCompletionToken || !isCodeRunning) {
-                        observer.disconnect();
-                        return;
-                    }
-
-                    if (finishIfIdle()) {
-                        observer.disconnect();
-                        return;
-                    }
-
-                    checks += 1;
-                    if (checks < 200) {
-                        window.setTimeout(poll, 50);
-                    }
-                };
-
-                window.setTimeout(poll, 50);
-            }, 0);
-        };
-
-        function setRunButtonState(running) {
-            const runButton = document.getElementById('run-btn');
-            if (!runButton) {
-                return;
-            }
-
-            runButton.textContent = running ? 'Pysäytä' : 'Suorita';
-            runButton.dataset.state = running ? 'running' : 'idle';
-        }
-
-        function hasTurtleAnimation() {
-            const turtleDiv = document.getElementById('turtle-div');
-            return !!(turtleDiv && turtleDiv.querySelector('animate, animateMotion, animateTransform'));
-        }
-
-        function scheduleIdleCompletionCheck(token) {
-            window.setTimeout(() => {
-                if (!isCodeRunning || token !== turtleCompletionToken) {
-                    return;
-                }
-
-                if (!hasTurtleAnimation()) {
-                    window.__markTurtleComplete();
-                }
-            }, 300);
-        }
-
-        function scheduleCompletionWatchdog(token, startedAt) {
-            if (completionWatchdog !== null) {
-                clearTimeout(completionWatchdog);
-            }
-
-            const tick = () => {
-                if (!isCodeRunning || token !== turtleCompletionToken) {
-                    completionWatchdog = null;
-                    return;
-                }
-
-                if (hasTurtleAnimation()) {
-                    completionWatchdog = null;
-                    return;
-                }
-
-                if (Date.now() - startedAt >= 700) {
-                    completionWatchdog = null;
-                    window.__markTurtleComplete();
-                    return;
-                }
-
-                completionWatchdog = window.setTimeout(tick, 100);
-            };
-
-            completionWatchdog = window.setTimeout(tick, 100);
-        }
+    return value.toString(36).padStart(25, '0');
+}
 
         function stopPython() {
             window.__turtleStopRequested = true;
-            turtleCompletionToken += 1;
-            isCodeRunning = false;
-
-            if (completionWatchdog !== null) {
-                clearTimeout(completionWatchdog);
-                completionWatchdog = null;
-            }
 
             if (pendingRunTimer !== null) {
                 clearTimeout(pendingRunTimer);
@@ -314,23 +195,17 @@
 
             const consoleOutput = document.getElementById('console-output');
             if (consoleOutput) {
-                consoleOutput.innerHTML += '<br><span style="color:#666">Pysäytetty.</span><br>';
+                consoleOutput.innerHTML += '<br><span style="color:#c0392b; font-weight:bold;">Pysäytetty.</span><br>';
             }
-
-            setRunButtonState(false);
-            window.__markTurtleComplete();
         }
 
         function runPython() {
-            if (isCodeRunning) {
-                stopPython();
-                return;
+            window.__turtleStopRequested = true;
+            if (pendingRunTimer !== null) {
+                clearTimeout(pendingRunTimer);
             }
 
-            isCodeRunning = true;
-            turtleCompletionToken += 1;
             window.__turtleStopRequested = false;
-            setRunButtonState(true);
 
             const turtleDiv = document.getElementById('turtle-div');
             turtleDiv.innerHTML = '';
@@ -340,10 +215,9 @@
             const turtleWidth = Math.max(1, turtleDiv.clientWidth || 600);
             const turtleHeight = Math.max(1, turtleDiv.clientHeight || 600);
             
-            const turtleCode = `
+            const prependedSetupCode = `
 import sys
-from browser import document
-from browser import window
+from browser import document, window, aio
 import turtle
 
 class PageOutput:
@@ -365,113 +239,44 @@ turtle.set_defaults(
     turtle_canvas_wrapper=document['turtle-div']
 )
 
-_BaseTurtle = turtle.Turtle
+async def _wait_for_turtle_animations():
+    while True:
+        if getattr(window, '__turtleStopRequested', False):
+            break
+        el = document['turtle-div']
+        if not el.querySelector('animate, animateMotion, animateTransform'):
+            break
+        await aio.sleep(0.01)
 
-class SafeTurtle(_BaseTurtle):
-    def _stopped(self):
-        return getattr(window, '__turtleStopRequested', False)
-
-    def _guard(self, method_name, *args, **kwargs):
-        if self._stopped():
+if not hasattr(turtle, '_patched_for_sync'):
+    turtle._patched_for_sync = True
+    
+    _orig_done = turtle.done
+    def _done_wrapper():
+        if getattr(window, '__turtleStopRequested', False):
             return None
-        return getattr(_BaseTurtle, method_name)(self, *args, **kwargs)
+        return _orig_done()
+    turtle.done = _done_wrapper
 
-    def forward(self, *args, **kwargs):
-        return self._guard('forward', *args, **kwargs)
-
-    fd = forward
-
-    def backward(self, *args, **kwargs):
-        return self._guard('backward', *args, **kwargs)
-
-    bk = backward
-
-    def left(self, *args, **kwargs):
-        return self._guard('left', *args, **kwargs)
-
-    lt = left
-
-    def right(self, *args, **kwargs):
-        return self._guard('right', *args, **kwargs)
-
-    rt = right
-
-    def goto(self, *args, **kwargs):
-        return self._guard('goto', *args, **kwargs)
-
-    setpos = goto
-    setposition = goto
-
-    def circle(self, *args, **kwargs):
-        return self._guard('circle', *args, **kwargs)
-
-    def dot(self, *args, **kwargs):
-        return self._guard('dot', *args, **kwargs)
-
-    def write(self, *args, **kwargs):
-        return self._guard('write', *args, **kwargs)
-
-    def color(self, *args, **kwargs):
-        return self._guard('color', *args, **kwargs)
-
-    def pencolor(self, *args, **kwargs):
-        return self._guard('pencolor', *args, **kwargs)
-
-    def fillcolor(self, *args, **kwargs):
-        return self._guard('fillcolor', *args, **kwargs)
-
-    def width(self, *args, **kwargs):
-        return self._guard('width', *args, **kwargs)
-
-    pensize = width
-
-    def penup(self, *args, **kwargs):
-        return self._guard('penup', *args, **kwargs)
-
-    pu = penup
-    up = penup
-
-    def pendown(self, *args, **kwargs):
-        return self._guard('pendown', *args, **kwargs)
-
-    pd = pendown
-    down = pendown
-
-    def begin_fill(self, *args, **kwargs):
-        return self._guard('begin_fill', *args, **kwargs)
-
-    def end_fill(self, *args, **kwargs):
-        return self._guard('end_fill', *args, **kwargs)
-
-    def home(self, *args, **kwargs):
-        return self._guard('home', *args, **kwargs)
-
-    def speed(self, *args, **kwargs):
-        return self._guard('speed', *args, **kwargs)
-
-    def clear(self, *args, **kwargs):
-        return self._guard('clear', *args, **kwargs)
-
-turtle.Turtle = SafeTurtle
-turtle.Pen = SafeTurtle
-
-_orig_done = turtle.done
-
-def _done_wrapper():
-    if getattr(window, '__turtleStopRequested', False):
-        return None
-    result = _orig_done()
-    if hasattr(window, '__armTurtleCompletion'):
-        window.__armTurtleCompletion()
-    return result
-
-turtle.done = _done_wrapper
+async def __wrapper_execution_scope():
+    try:
 `;
+
+            const appendedCleanupCode = `
+        await aio.sleep(0.05)
+        await _wait_for_turtle_animations()
+        turtle.done()
+    except Exception as e:
+        sys.stderr.write(str(e))
+
+aio.run(__wrapper_execution_scope())
+`;
+
+            const indentedUserCode = code.split('\n').map(line => '        ' + line).join('\n');
+            const fullCode = prependedSetupCode + indentedUserCode + appendedCleanupCode;
             
             try {
                 console.log('Suoritetaan');
-                
-                const fullCode = turtleCode + '\n' + code + '\nturtle.done()';
                 
                 const script = document.createElement('script');
                 script.type = 'text/python';
@@ -480,17 +285,13 @@ turtle.done = _done_wrapper
                 
                 pendingRunTimer = setTimeout(() => {
                     try {
-                        const startedAt = Date.now();
                         brython({debug: 0});
-                        scheduleIdleCompletionCheck(turtleCompletionToken);
-                        scheduleCompletionWatchdog(turtleCompletionToken, startedAt);
                     } catch (err) {
                         console.error('Virhe:', err);
                         const consoleOutput = document.getElementById('console-output');
                         if (consoleOutput) {
                             consoleOutput.innerHTML += '<span style="color:red">Virhe: ' + err + '</span><br>';
                         }
-                        window.__markTurtleComplete();
                     } finally {
                         pendingRunTimer = null;
                     }
@@ -498,8 +299,6 @@ turtle.done = _done_wrapper
                 
                 console.log('Ajastettu');
             } catch(err) {
-                isCodeRunning = false;
-                setRunButtonState(false);
                 console.error("Virhe:", err);
                 document.getElementById('console-output').innerHTML += '<span style="color:red">Virhe: ' + err + '</span><br>';
             }
