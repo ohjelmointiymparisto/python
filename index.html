@@ -1,567 +1,744 @@
 <!DOCTYPE html>
 <html lang="fi">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Python</title>
-    <script type="text/javascript" src="https://unpkg.com/brython@3.13.0/brython.min.js"></script>
-    <script type="text/javascript" src="https://unpkg.com/brython@3.13.0/brython_stdlib.js"></script>
-    <script type="text/javascript" src="https://unpkg.com/@supabase/supabase-js@2.43.0/dist/umd/supabase.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.0/brython.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.0/brython_stdlib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
             height: 100vh;
-            overflow: hidden;
-        }
-        #code-section {
+            width: 100vw;
             display: flex;
             flex-direction: column;
-            flex: 1;
+            box-sizing: border-box;
+            background-color: #ffffff;
+            color: #333333;
+            overflow: hidden;
         }
-        #button-area {
+        #button-bar {
             display: flex;
-            gap: 0;
-            height: 40px;
+            width: 100%;
+            background-color: #ffffff;
+            z-index: 20;
+            flex-shrink: 0;
+            border-bottom: 1px solid #e0e0e0;
         }
-        button {
+        .button-cluster {
+            display: flex;
+            width: 50%;
+        }
+        .top-btn {
             flex: 1;
-            padding: 10px 20px;
-            font-size: 16px;
-            font-weight: bold;
-            border: none;
-            border-radius: 0;
+            padding: 14px 0;
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
-            transition: background 0.2s;
-            color: #333;
-            border-right: 1px solid #ccc;
-        }
-        #run-btn {
-            background-color: #ffffff;
-        }
-        #run-btn:hover {
-            background-color: #f0f0f0;
-        }
-        #stop-btn {
-            background-color: #ffffff;
-        }
-        #stop-btn:hover {
-            background-color: #f0f0f0;
-        }
-        #share-btn {
-            background-color: #ffffff;
-        }
-        #share-btn:hover {
-            background-color: #f0f0f0;
-        }
-        #container {
-            display: flex;
-            gap: 0;
-            max-width: 100%;
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-        }
-        #editor-wrapper {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-            border: 1px solid #ccc;
-            border-radius: 0;
-        }
-        #line-numbers {
-            flex: 0 0 40px;
-            padding: 15px 8px 15px 15px;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 16px;
-            line-height: normal;
-            color: #999;
-            background-color: #fafafa;
-            border-right: 1px solid #e0e0e0;
-            text-align: right;
-            overflow: hidden;
-            user-select: none;
-            white-space: pre;
-        }
-        textarea#code {
-            flex: 1;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 16px;
-            line-height: normal;
-            padding: 15px;
+            background: #ffffff;
+            color: #333333;
             border: none;
-            border-radius: 0;
-            resize: none;
-            box-shadow: none;
-            outline: none;
+            transition: background 0.15s ease;
+            text-align: center;
+            box-sizing: border-box;
         }
-        #divider {
+        .top-btn:hover { background: #f5f5f5; }
+        #run-btn { border-right: 1px solid #e0e0e0; }
+        #share-btn { border-right: 1px solid #e0e0e0; }
+        #switch-btn { display: none; }
+        #workspace {
+            display: flex;
+            width: 100%;
+            flex: 1;
+            position: relative;
+        }
+        #left-pane {
+            width: 50%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        #editor-container {
+            flex: 1;
+            width: 100%;
+        }
+        .error-line-highlight {
+            background: rgba(217, 56, 30, 0.12) !important;
+            border-left: 4px solid #d9381e !important;
+        }
+        #resizer-v {
             width: 6px;
             height: 100%;
-            background-color: #ddd;
             cursor: col-resize;
+            background-color: #f0f0f0;
+            border-left: 1px solid #e0e0e0;
+            border-right: 1px solid #e0e0e0;
             user-select: none;
-            transition: background-color 0.2s;
-            flex: 0 0 6px;
-        }
-        #divider:hover {
-            background-color: #999;
-        }
-        #turtle-div {
-            width: 100%;
-            flex: 1;
-            border: 1px solid #ccc;
-            border-radius: 0;
-            background-color: #ffffff;
-            box-shadow: none;
-            overflow: hidden;
-            display: none;
-        }
-        #turtle-div.visible {
-            display: flex;
-        }
-        #turtle-div svg {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-        #output-area {
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-            height: 100%;
-        }
-        #console-output {
-            flex: 1;
-            border: 1px solid #ccc;
-            border-top: none;
-            border-radius: 0;
-            background-color: #f5f5f5;
-            overflow-y: auto;
-            padding: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 16px;
-            color: #333;
-        }
-        #console-output.full-height {
-            flex: 1;
-            border-top: 1px solid #ccc;
-        }
-        .share-url-container {
-            position: fixed;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            text-align: center;
-            margin: 0;
-            padding: 10px 20px;
-            background: #fff;
-            border-top: 1px solid #ccc;
+            transition: background-color 0.15s;
             z-index: 10;
         }
-        #share-status {
-            font-size: 16px;
-            font-weight: 500;
-            margin-bottom: 5px;
+        #resizer-v:hover, .resizing-v #resizer-v { background-color: #0e639c; }
+        #resizer-h {
+            height: 6px;
+            width: 100%;
+            cursor: row-resize;
+            background-color: #f0f0f0;
+            border-top: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
+            user-select: none;
+            transition: background-color 0.15s;
+            z-index: 10;
+            display: none; 
         }
-        #share-url {
-            font-weight: bold;
-            color: #2980b9;
-            word-break: break-all;
+        #resizer-h:hover, .resizing-h #resizer-h { background-color: #0e639c; }
+        #right-pane {
+            flex: 1;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        #turtle-div {
+            height: 50%;
+            width: 100%;
+            background: #ffffff;
+            position: relative;
+            overflow: hidden;
+            display: none; 
+            justify-content: center;
+            align-items: center;
+        }
+        #turtle-div > svg {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #console-wrapper {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            min-height: 0;
+        }
+        #console-log-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px 15px 5px 15px;
+            background: #ffffff;
+            cursor: text;
+        }
+        #console-output {
+            color: #222222;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 17.5px; 
+            white-space: pre-wrap;
+            margin: 0;
+        }
+        .terminal-input-row-container {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        .terminal-caret {
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 17.5px;
+            color: #222222;
+            white-space: pre;
+        }
+        .terminal-inline-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #0044ff; 
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 17.5px;
+            padding: 0;
+            margin: 0;
+            width: 1ch; 
+            min-width: 1ch;
+            caret-color: transparent; 
+        }
+        .terminal-thick-cursor {
+            display: inline-block;
+            width: 8px; 
+            height: 19px; 
+            background-color: #222222; 
+            animation: terminal-cursor-blink 1s step-end infinite;
+            margin-left: 1px;
+        }
+        @keyframes terminal-cursor-blink {
+            from, to { background-color: transparent; }
+            50% { background-color: #222222; }
+        }
+        .user-submitted-span {
+            color: #0044ff; 
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 17.5px;
+        }
+        .error-text { color: #d9381e; }
+        #clear-btn {
+            width: 100%;
+            padding: 12px 0;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            background: #ffffff;
+            color: #666666;
+            border: none;
+            border-top: 1px solid #e0e0e0;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        #clear-btn:hover {
+            background: #f5f5f5;
+            color: #333333;
+        }
+        #footer {
+            height: 5vh;
+            width: 100%;
+            background-color: #fcfcfc;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #555555;
+            box-sizing: border-box;
+            padding: 0 20px;
+            flex-shrink: 0;
+        }
+        #share-link-text { font-weight: 600; color: #0e639c; margin-left: 6px; user-select: all; }
+        @media (max-width: 768px) {
+            #button-bar { border-bottom: none; }
+            .button-cluster { width: 100%; }
+            .top-btn { flex: 1; border-bottom: 1px solid #e0e0e0; }
+            #switch-btn { display: block; }
+            #resizer-v { display: none; }
+            #workspace { display: block; }
+            #left-pane, #right-pane { width: 100% !important; height: 100% !important; display: none; }
+            .mobile-show-editor #left-pane { display: flex; }
+            .mobile-show-output #right-pane { display: flex; }
         }
     </style>
-</head>
-<body>
-    <div id="container">
-        <div id="code-section">
-            <div id="button-area">
-                <button id="run-btn">Suorita</button>
-                <button id="stop-btn">Pysäytä</button>
-                <button id="share-btn" type="button">Jaa (kopioi linkki)</button>
-            </div>
-            <div id="editor-wrapper">
-                <div id="line-numbers" aria-hidden="true">1</div>
-                <textarea id="code" placeholder="Koodi tähän..."></textarea>
-            </div>
-        </div>
-        <div id="divider"></div>
-        <div id="output-area">
-            <div id="turtle-div"></div>
-            <div id="console-output" class="full-height"></div>
-        </div>
-    </div>
-    <div class="share-url-container">
-        <p id="share-status">&copy; <a href="https://toivo.pages.dev" target="_blank">Toivo Muukkonen</a> 2026</p>
-        <span id="share-url"></span>
-    </div>
     <script>
-        (function () {
-        if (window.__pythonEditorInitialized) return;
-        window.__pythonEditorInitialized = true;
-
         const SUPABASE_URL = "https://dedytnfmdjtfabqxkjcv.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_xR2GR31GRTy7rkEpWGVsZw_lxLAgNfO";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        window.turtleTimer = null;
+        window.isRunning = false;
         
-        const supabaseClient = window.supabase ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-        let pendingRunTimer = null;
-        const INDENT = '    ';
+        window.currentInputResolver = null;
+        window.currentInputWrapper = null;
+        window.currentDecorations = [];
 
-        function updateLineNumbers() {
-            const codeArea = document.getElementById('code');
-            const lineNumbers = document.getElementById('line-numbers');
-            if (!codeArea || !lineNumbers) return;
-            const count = codeArea.value.split('\n').length;
-            lineNumbers.textContent = Array.from({ length: count }, (_, i) => i + 1).join('\n');
-        }
+        window.setRunningState = function(running) {
+            window.isRunning = running;
+            const runBtn = document.getElementById('run-btn');
+            runBtn.innerText = running ? 'Pysäytä' : 'Suorita';
+        };
 
-        function syncLineNumberScroll() {
-            const codeArea = document.getElementById('code');
-            const lineNumbers = document.getElementById('line-numbers');
-            if (codeArea && lineNumbers) {
-                lineNumbers.scrollTop = codeArea.scrollTop;
+        window.toggleTurtleCanvas = function(show) {
+            const turtleDiv = document.getElementById('turtle-div');
+            const resizerH = document.getElementById('resizer-h');
+            if (show) {
+                turtleDiv.style.display = 'flex';
+                resizerH.style.display = 'block';
+                if (turtleDiv.style.height === '0px' || !turtleDiv.style.height) {
+                    turtleDiv.style.height = '50%';
+                }
+            } else {
+                turtleDiv.style.display = 'none';
+                resizerH.style.display = 'none';
             }
-        }
+        };
 
-        function getSelectedLineRange(textarea) {
-            const value = textarea.value;
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const lineStart = value.lastIndexOf('\n', start - 1) + 1;
-            const lineEndIndex = value.indexOf('\n', end);
-            const lineEnd = lineEndIndex === -1 ? value.length : lineEndIndex;
-            return { lineStart, lineEnd };
-        }
-
-        function initEditor() {
-            const codeArea = document.getElementById('code');
-            if (!codeArea) return;
-
-            codeArea.addEventListener('input', updateLineNumbers);
-            codeArea.addEventListener('scroll', syncLineNumberScroll);
-
-            codeArea.addEventListener('keydown', (e) => {
-                if (e.key === 'Tab') {
-                    e.preventDefault();
-                    const { lineStart, lineEnd } = getSelectedLineRange(codeArea);
-                    const block = codeArea.value.substring(lineStart, lineEnd);
-
-                    if (e.shiftKey) {
-                        const dedented = block.split('\n').map((line) => {
-                            if (line.startsWith(INDENT)) return line.slice(INDENT.length);
-                            if (line.startsWith('\t')) return line.slice(1);
-                            return line;
-                        }).join('\n');
-                        codeArea.setRangeText(dedented, lineStart, lineEnd, 'select');
-                    } else if (codeArea.selectionStart !== codeArea.selectionEnd) {
-                        const indented = block.split('\n').map((line) => INDENT + line).join('\n');
-                        codeArea.setRangeText(indented, lineStart, lineEnd, 'select');
-                    } else {
-                        const pos = codeArea.selectionStart;
-                        codeArea.setRangeText(INDENT, pos, pos, 'end');
+        window.highlightErrorLine = function(lineNum) {
+            if (!window.editor || lineNum < 1) return;
+            window.currentDecorations = window.editor.deltaDecorations(window.currentDecorations, [
+                {
+                    range: new monaco.Range(lineNum, 1, lineNum, 1),
+                    options: {
+                        isWholeLine: true,
+                        className: 'error-line-highlight'
                     }
-                    updateLineNumbers();
+                }
+            ]);
+        };
+
+        window.clearErrorHighlights = function() {
+            if (window.editor && window.currentDecorations.length > 0) {
+                window.currentDecorations = window.editor.deltaDecorations(window.currentDecorations, []);
+            }
+        };
+
+        window.stopExecution = function() {
+            clearTimeout(window.turtleTimer);
+            const canvas = document.getElementById('turtle-div');
+            if (canvas) canvas.innerHTML = '';
+            
+            if (window.currentInputWrapper) {
+                const outNode = document.getElementById('console-output');
+                try { outNode.removeChild(window.currentInputWrapper); } catch(e) {}
+                if (window.currentInputResolver) window.currentInputResolver('');
+                window.currentInputWrapper = null;
+                window.currentInputResolver = null;
+            }
+
+            if (window.abort_buffer) window.abort_buffer();
+            window.setRunningState(false);
+        };
+
+        window.requestInlineInput = function(promptText) {
+            return new Promise((resolve) => {
+                const outNode = document.getElementById('console-output');
+                const logArea = document.getElementById('console-log-area');
+                
+                if (promptText) {
+                    let standardPrompt = promptText;
+                    if (!standardPrompt.endsWith('\n')) {
+                        standardPrompt += '\n';
+                    }
+                    outNode.appendChild(document.createTextNode(standardPrompt));
+                }
+
+                const rowContainer = document.createElement('div');
+                rowContainer.className = 'terminal-input-row-container';
+                
+                const caretPrefix = document.createElement('span');
+                caretPrefix.className = 'terminal-caret';
+                caretPrefix.innerText = '> ';
+                
+                const inputField = document.createElement('input');
+                inputField.type = 'text';
+                inputField.className = 'terminal-inline-input';
+                inputField.autocomplete = 'off';
+                inputField.spellcheck = false;
+
+                const customThickCursor = document.createElement('span');
+                customThickCursor.className = 'terminal-thick-cursor';
+
+                rowContainer.appendChild(caretPrefix);
+                rowContainer.appendChild(inputField);
+                rowContainer.appendChild(customThickCursor);
+                outNode.appendChild(rowContainer);
+
+                logArea.scrollTop = logArea.scrollHeight;
+                setTimeout(() => inputField.focus(), 20);
+
+                window.currentInputResolver = resolve;
+                window.currentInputWrapper = rowContainer;
+
+                inputField.addEventListener('input', function() {
+                    inputField.style.width = Math.max(1, inputField.value.length) + 'ch';
+                    logArea.scrollTop = logArea.scrollHeight;
+                });
+
+                inputField.addEventListener('keydown', function(event) {
+                    if (event.key === 'Enter') {
+                        const val = inputField.value;
+                        outNode.removeChild(rowContainer);
+                        
+                        const historyRow = document.createElement('div');
+                        historyRow.className = 'terminal-input-row-container';
+                        
+                        const historyPrefix = document.createElement('span');
+                        historyPrefix.className = 'terminal-caret';
+                        historyPrefix.innerText = '> ';
+                        
+                        const textSpan = document.createElement('span');
+                        textSpan.className = 'user-submitted-span';
+                        textSpan.innerText = val;
+
+                        historyRow.appendChild(historyPrefix);
+                        historyRow.appendChild(textSpan);
+                        outNode.appendChild(historyRow);
+                        outNode.appendChild(document.createTextNode('\n'));
+                        
+                        logArea.scrollTop = logArea.scrollHeight;
+                        
+                        window.currentInputResolver = null;
+                        window.currentInputWrapper = null;
+                        resolve(val);
+                    }
+                });
+            });
+        };
+
+        const parseDur = (str) => {
+            if (!str) return 0;
+            const val = parseFloat(str);
+            if (isNaN(val)) return 0;
+            if (str.toLowerCase().endsWith('ms')) return val;
+            if (str.toLowerCase().endsWith('s')) return val * 1000;
+            return val * 1000; 
+        };
+
+        window.syncTurtleOutput = function() {
+            setTimeout(() => {
+                const canvas = document.getElementById('turtle-div');
+                if (!canvas) return;
+
+                const animations = canvas.querySelectorAll('animate, animateTransform, animateMotion, set');
+                if (animations.length === 0) {
+                    if (window.trigger_flush) window.trigger_flush();
+                    window.setRunningState(false);
                     return;
                 }
 
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    const pos = codeArea.selectionStart;
-                    const value = codeArea.value;
-                    const lineStart = value.lastIndexOf('\n', pos - 1) + 1;
-                    const currentLine = value.substring(lineStart, pos);
-                    const baseIndent = currentLine.match(/^\s*/)[0];
-                    let newIndent = baseIndent;
-                    if (currentLine.trimEnd().endsWith(':')) {
-                        newIndent = baseIndent + INDENT;
+                let totalCumulativeDuration = 0;
+                animations.forEach(anim => {
+                    totalCumulativeDuration += parseDur(anim.getAttribute('dur'));
+                });
+
+                let eventFired = false;
+                const completeExecution = () => {
+                    if (!eventFired) {
+                        eventFired = true;
+                        clearTimeout(window.turtleTimer);
+                        if (window.trigger_flush) window.trigger_flush();
+                        window.setRunningState(false);
                     }
-                    e.preventDefault();
-                    codeArea.setRangeText('\n' + newIndent, pos, codeArea.selectionEnd, 'end');
-                    updateLineNumbers();
-                }
+                };
+
+                const lastAnimation = animations[animations.length - 1];
+                lastAnimation.addEventListener('endEvent', completeExecution);
+                lastAnimation.addEventListener('end', completeExecution); 
+
+                clearTimeout(window.turtleTimer);
+                window.turtleTimer = setTimeout(completeExecution, totalCumulativeDuration + 100);
+            }, 20);
+        };
+
+        window.clearConsole = function() {
+            const consoleOut = document.getElementById('console-output');
+            if (consoleOut) consoleOut.innerHTML = '';
+        };
+
+        function toggleMobileView() {
+            const workspace = document.getElementById('workspace');
+            if (workspace.classList.contains('mobile-show-editor')) {
+                workspace.classList.remove('mobile-show-editor');
+                workspace.classList.add('mobile-show-output');
+            } else {
+                workspace.classList.remove('mobile-show-output');
+                workspace.classList.add('mobile-show-editor');
+                if (window.editor) { setTimeout(() => window.editor.layout(), 10); }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const resizerV = document.getElementById('resizer-v');
+            const resizerH = document.getElementById('resizer-h');
+            const leftPane = document.getElementById('left-pane');
+            const turtleDiv = document.getElementById('turtle-div');
+            const workspace = document.getElementById('workspace');
+            const rightPane = document.getElementById('right-pane');
+
+            workspace.classList.add('mobile-show-editor');
+
+            document.getElementById('console-log-area').addEventListener('click', () => {
+                const activeInputField = document.querySelector('.terminal-inline-input');
+                if (activeInputField) { activeInputField.focus(); }
             });
 
-            updateLineNumbers();
-        }
-
-        function codeUsesTurtle(code) {
-            return /\b(import\s+turtle|from\s+turtle\b|turtle\s*\.)/.test(code);
-        }
-
-function generateShareId() {
-    const bytes = new Uint8Array(16);
-    window.crypto.getRandomValues(bytes);
-
-    let value = 0n;
-    for (const byte of bytes) {
-        value = (value << 8n) | BigInt(byte);
-    }
-
-    return value.toString(36).padStart(25, '0');
-}
-
-        function stopPython() {
-            window.__turtleStopRequested = true;
-
-            if (pendingRunTimer !== null) {
-                clearTimeout(pendingRunTimer);
-                pendingRunTimer = null;
+            resizerV.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                workspace.classList.add('resizing-v');
+                document.addEventListener('mousemove', handleMouseMoveV);
+                document.addEventListener('mouseup', handleMouseUpV);
+            });
+            function handleMouseMoveV(e) {
+                const containerWidth = workspace.clientWidth;
+                let pct = (e.clientX / containerWidth) * 100;
+                if (pct < 20) pct = 20; if (pct > 80) pct = 80;
+                leftPane.style.width = `${pct}%`;
+                if (window.editor) window.editor.layout();
+            }
+            function handleMouseUpV() {
+                workspace.classList.remove('resizing-v');
+                document.removeEventListener('mousemove', handleMouseMoveV);
+                document.removeEventListener('mouseup', handleMouseUpV);
             }
 
-            const turtleDiv = document.getElementById('turtle-div');
-            if (turtleDiv) {
-                turtleDiv.innerHTML = '';
+            resizerH.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                workspace.classList.add('resizing-h');
+                document.addEventListener('mousemove', handleMouseMoveH);
+                document.addEventListener('mouseup', handleMouseUpH);
+            });
+            function handleMouseMoveH(e) {
+                const relativeY = e.clientY - rightPane.getBoundingClientRect().top;
+                let pct = (relativeY / rightPane.getBoundingClientRect().height) * 100;
+                if (pct < 15) pct = 15; if (pct > 85) pct = 85;
+                turtleDiv.style.height = `${pct}%`;
+            }
+            function handleMouseUpH() {
+                workspace.classList.remove('resizing-h');
+                document.removeEventListener('mousemove', handleMouseMoveH);
+                document.removeEventListener('mouseup', handleMouseUpH);
             }
 
-            const consoleOutput = document.getElementById('console-output');
-            if (consoleOutput) {
-                consoleOutput.innerHTML += '<br><span style="color:#c0392b; font-weight:bold;">Pysäytetty.</span><br>';
-            }
-        }
+            document.getElementById('switch-btn').addEventListener('click', toggleMobileView);
+            
+            require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+            require(['vs/editor/editor.main'], function() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const initialCode = urlParams.get('code') || '';
 
-        function runPython() {
-            window.__turtleStopRequested = true;
-            if (pendingRunTimer !== null) {
-                clearTimeout(pendingRunTimer);
-            }
+                window.editor = monaco.editor.create(document.getElementById('editor-container'), {
+                    value: initialCode,
+                    language: 'python',
+                    theme: 'vs', 
+                    automaticLayout: true,
+                    fontSize: 17.5, 
+                    minimap: { enabled: false }
+                });
 
-            window.__turtleStopRequested = false;
+                window.editor.onDidChangeModelContent(() => {
+                    window.clearErrorHighlights();
+                });
+            });
+        });
+    </script>
+</head>
+<body onload="brython()">
 
-            const outputArea = document.getElementById('output-area');
-            const turtleDiv = document.getElementById('turtle-div');
-            const consoleOutput = document.getElementById('console-output');
-            const code = document.getElementById('code').value;
-            const usesTurtle = codeUsesTurtle(code);
+    <div id="button-bar">
+        <div class="button-cluster">
+            <button id="run-btn" class="top-btn">Suorita</button>
+            <button id="share-btn" class="top-btn">Jaa koodi</button>
+            <button id="switch-btn" class="top-btn">Vaihda näkymää</button>
+        </div>
+    </div>
 
-            turtleDiv.classList.toggle('visible', usesTurtle);
-            consoleOutput.classList.toggle('full-height', !usesTurtle);
-            turtleDiv.innerHTML = '';
-            consoleOutput.innerHTML = '';
+    <div id="workspace">
+        <div id="left-pane">
+            <div id="editor-container"></div>
+        </div>
 
-            const turtleWidth = Math.max(1, outputArea.clientWidth || 600);
-            const turtleHeight = usesTurtle
-                ? Math.max(1, Math.floor(outputArea.clientHeight / 2) || 300)
-                : 600;
+        <div id="resizer-v"></div>
 
-            const baseSetupCode = `
-import sys
-from browser import document, window, aio
+        <div id="right-pane">
+            <div id="turtle-div"></div>
+            <div id="resizer-h"></div>
+            
+            <div id="console-wrapper">
+                <div id="console-log-area">
+                    <pre id="console-output"></pre>
+                </div>
+                <button id="clear-btn" onclick="window.clearConsole()">Tyhjennä</button>
+            </div>
+        </div>
+    </div>
 
-class PageOutput:
-    def __init__(self, element_id):
-        self.element_id = element_id
-    
-    def write(self, text):
-        el = document[self.element_id]
-        el.innerHTML += str(text).replace('\\n', '<br>')
-    
-    def flush(self):
-        pass
+    <div id="footer">&copy; <a href="https://toivo.pages.dev" target="_blank">Toivo Muukkonen</a> 2026</div>
 
-class PageErrorOutput:
-    def write(self, text):
-        el = document['console-output']
-        el.innerHTML += '<span style="color:#c0392b">' + str(text).replace('\\n', '<br>') + '</span>'
-    
-    def flush(self):
-        pass
-
-sys.stdout = PageOutput('console-output')
-sys.stderr = PageErrorOutput()
-`;
-
-            const turtleSetupCode = usesTurtle ? `
-import turtle
-
-turtle.set_defaults(
-    canvwidth=${turtleWidth},
-    canvheight=${turtleHeight},
-    turtle_canvas_wrapper=document['turtle-div']
-)
-
-async def _wait_for_turtle_animations():
-    while True:
-        if getattr(window, '__turtleStopRequested', False):
-            break
-        el = document['turtle-div']
-        if not el.querySelector('animate, animateMotion, animateTransform'):
-            break
-        await aio.sleep(0.01)
-
-if not hasattr(turtle, '_patched_for_sync'):
-    turtle._patched_for_sync = True
-    
-    _orig_done = turtle.done
-    def _done_wrapper():
-        if getattr(window, '__turtleStopRequested', False):
-            return None
-        return _orig_done()
-    turtle.done = _done_wrapper
-` : '';
-
-            const wrapperStartCode = `
-async def __wrapper_execution_scope():
-    try:
-`;
-
-            const turtleCleanupCode = usesTurtle ? `
-        await aio.sleep(0.05)
-        await _wait_for_turtle_animations()
-        turtle.done()
-` : '';
-
-            const wrapperEndCode = `
-    except Exception:
+    <script type="text/python">
+        from browser import document, window, aio, html
+        import sys
         import traceback
-        sys.stderr.write(traceback.format_exc())
+        import ast
 
-aio.run(__wrapper_execution_scope())
-`;
+        class DOMOutput:
+            buffer = []
+            is_animating = False
 
-            const prependedSetupCode = baseSetupCode + turtleSetupCode + wrapperStartCode;
-            const appendedCleanupCode = turtleCleanupCode + wrapperEndCode;
+            def __init__(self, element_id, is_error=False):
+                self.element = document[element_id]
+                self.is_error = is_error
 
-            const indentedUserCode = code.split('\n').map(line => '        ' + line).join('\n');
-            const fullCode = prependedSetupCode + indentedUserCode + appendedCleanupCode;
+            def write(self, text):
+                if DOMOutput.is_animating:
+                    DOMOutput.buffer.append({'text': text, 'is_error': self.is_error, 'element': self.element})
+                else:
+                    self._direct_write(text)
+
+            def _direct_write(self, text):
+                if self.is_error:
+                    self.element <= html.SPAN(str(text), Class="error-text")
+                else:
+                    self.element <= str(text)
+                log_area = document["console-log-area"]
+                log_area.scrollTop = log_area.scrollHeight
+
+            @staticmethod
+            def flush_buffer():
+                for item in DOMOutput.buffer:
+                    if item['is_error']:
+                        item['element'] <= html.SPAN(str(item["text"]), Class="error-text")
+                    else:
+                        item['element'] <= str(item['text'])
+                DOMOutput.buffer.clear()
+                log_area = document["console-log-area"]
+                log_area.scrollTop = log_area.scrollHeight
+
+        sys.stdout = DOMOutput("console-output", is_error=False)
+        sys.stderr = DOMOutput("console-output", is_error=True)
+
+        def trigger_flush():
+            DOMOutput.is_animating = False
+            DOMOutput.flush_buffer()
+
+        def abort_buffer():
+            DOMOutput.is_animating = False
+            DOMOutput.buffer.clear()
+
+        window.trigger_flush = trigger_flush
+        window.abort_buffer = abort_buffer
+
+        class CodeCoordinateMapper(ast.NodeVisitor):
+            def __init__(self):
+                self.has_input = False
+                self.func_names = set()
+                self.mods = []
+
+            def visit_Call(self, node):
+                if isinstance(node.func, ast.Name) and node.func.id == 'input':
+                    self.has_input = True
+                    self.mods.append((node.func.lineno, node.func.col_offset, node.func.end_lineno, node.func.end_col_offset, "await __custom_async_input__"))
+                self.generic_visit(node)
+
+            def visit_FunctionDef(self, node):
+                self.func_names.add(node.name)
+                self.mods.append((node.lineno, node.col_offset, node.lineno, node.col_offset + 3, "async def"))
+                self.generic_visit(node)
+
+        class FunctionCallAwaitedMapper(ast.NodeVisitor):
+            def __init__(self, func_names, mods):
+                self.func_names = func_names
+                self.mods = mods
+
+            def visit_Call(self, node):
+                if isinstance(node.func, ast.Name) and node.func.id in self.func_names:
+                    self.mods.append((node.func.lineno, node.func.col_offset, node.func.lineno, node.func.col_offset, "await "))
+                self.generic_visit(node)
+
+        def apply_string_modifications(source_text, modifications):
+            modifications.sort(key=lambda x: (x[0], x[1]), reverse=True)
+            lines = source_text.splitlines()
             
-            try {
-                console.log('Suoritetaan');
-                
-                const script = document.createElement('script');
-                script.type = 'text/python';
-                script.textContent = fullCode;
-                document.body.appendChild(script);
-                
-                pendingRunTimer = setTimeout(() => {
-                    try {
-                        brython({debug: 0});
-                    } catch (err) {
-                        console.error('Virhe:', err);
-                        const consoleOutput = document.getElementById('console-output');
-                        if (consoleOutput) {
-                            consoleOutput.innerHTML += '<span style="color:red">Virhe: ' + err + '</span><br>';
-                        }
-                    } finally {
-                        pendingRunTimer = null;
-                    }
-                }, 100);
-                
-                console.log('Ajastettu');
-            } catch(err) {
-                console.error("Virhe:", err);
-                document.getElementById('console-output').innerHTML += '<span style="color:red">Virhe: ' + err + '</span><br>';
-            }
-        }
+            for start_line, start_col, end_line, end_col, replacement in modifications:
+                s_idx = start_line - 1
+                e_idx = end_line - 1
+                if s_idx == e_idx:
+                    target_line = lines[s_idx]
+                    lines[s_idx] = target_line[:start_col] + replacement + target_line[end_col:]
+            return "\n".join(lines)
 
-        async function shareSnippet() {
-            const codeText = document.getElementById('code').value;
-            const statusEl = document.getElementById('share-status');
-            const urlEl = document.getElementById('share-url');
+        async def run_code():
+            document["console-output"].innerHTML = ""
+            document["turtle-div"].innerHTML = ""
+            window.clearErrorHighlights()
             
-            if (!codeText.trim()) return alert("Kirjoita koodi ennen jakamista!");
-            if (!supabaseClient) {
-                alert('Ei voitu tallentaa.');
-                return;
-            }
-
-            const uniqueId = generateShareId();
-
-            statusEl.innerText = "Jaetaan...";
-            urlEl.innerText = "";
-
-            const { error } = await supabaseClient
-                .from('snippets')
-                .insert([{ tunnus: uniqueId, code: codeText }]);
-
-            if (error) {
-                console.error(error);
-                statusEl.innerText = "Virhe tallentaessa.";
-                alert('Ei voitu tallentaa. Kurkista konsoliin.');
-                return;
-            }
-
-            const shareLink = window.location.origin + window.location.pathname + "?id=" + uniqueId;
-            statusEl.innerText = "Jakolinkki luotu! Kopioi:";
-            urlEl.innerText = shareLink;
-
-            try {
-                await navigator.clipboard.writeText(shareLink);
-                statusEl.innerText = "Jakolinkki kopioitu leikepöydälle.";
-            } catch (clipboardError) {
-                console.warn('Tallennus onnistui, muttei voitu kopioida:', clipboardError);
-            }
-        }
-
-        async function loadSnippetFromURL() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const snippetId = urlParams.get('id');
-
-            if (snippetId) {
-                if (!supabaseClient) {
-                    alert('Ei voitu tallentaa.');
-                    return;
-                }
-
-                const codeArea = document.getElementById('code');
-                codeArea.value = "# Ladataan...";
+            user_code = window.editor.getValue()
+            window.setRunningState(True)
+            
+            has_turtle = "turtle" in user_code
+            window.toggleTurtleCanvas(has_turtle)
+            
+            DOMOutput.is_animating = has_turtle
+            runtime_globals = {}
+            mapper_has_input = False
+            
+            try:
+                setup = (
+                    "from browser import document\n"
+                    "import turtle\n"
+                    "turtle.set_defaults(turtle_canvas_wrapper=document['turtle-div'])\n"
+                )
+                exec(setup, runtime_globals)
                 
-                const { data, error } = await supabaseClient
-                    .from('snippets')
-                    .select('code') 
-                    .eq('tunnus', snippetId)
-                    .single();
+                async def __custom_async_input__(prompt_msg=""):
+                    if DOMOutput.is_animating: DOMOutput.flush_buffer()
+                    res = await window.requestInlineInput(str(prompt_msg))
+                    return res
 
-                if (error || !data) {
-                    alert("Tallennetta ei löytynyt.");
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    codeArea.value = "";
-                } else {
-                    codeArea.value = data.code;
-                }
-                updateLineNumbers();
-            }
-        }
+                runtime_globals['__custom_async_input__'] = __custom_async_input__
+                
+                if user_code.strip():
+                    tree = ast.parse(user_code)
+                    mapper = CodeCoordinateMapper()
+                    mapper.visit(tree)
+                    mapper_has_input = mapper.has_input
+                    
+                    if mapper.has_input:
+                        call_mapper = FunctionCallAwaitedMapper(mapper.func_names, mapper.mods)
+                        call_mapper.visit(tree)
+                        
+                        top_level_vars = set()
+                        for node in tree.body:
+                            if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                                targets = node.targets if hasattr(node, 'targets') else [node.target]
+                                for target in targets:
+                                    if isinstance(target, ast.Name):
+                                        top_level_vars.add(target.id)
+                                    elif isinstance(target, (ast.Tuple, ast.List)):
+                                        for elt in target.elts:
+                                            if isinstance(elt, ast.Name):
+                                                top_level_vars.add(elt.id)
+                            elif isinstance(node, ast.For):
+                                if isinstance(node.target, ast.Name):
+                                    top_level_vars.add(node.target.id)
 
-        function initApp() {
-            initEditor();
-            document.getElementById('run-btn').addEventListener('click', runPython);
-            document.getElementById('stop-btn').addEventListener('click', stopPython);
-            document.getElementById('share-btn').addEventListener('click', shareSnippet);
-            loadSnippetFromURL();
-        }
+                        transformed_source = apply_string_modifications(user_code, mapper.mods)
+                        indented_body = "\n".join("    " + line for line in transformed_source.splitlines())
+                        
+                        global_declaration_header = f"    global {', '.join(top_level_vars)}\n" if top_level_vars else "    pass\n"
+                        
+                        wrapped_execution_string = (
+                            f"async def __main__():\n"
+                            f"{global_declaration_header}"
+                            f"{indented_body}\n"
+                        )
+                        
+                        exec(wrapped_execution_string, runtime_globals)
+                        await runtime_globals['__main__']()
+                    else:
+                        exec(user_code, runtime_globals)
 
-        initApp();
+                if "turtle" in runtime_globals:
+                    exec("turtle.done()", runtime_globals)
+                    window.syncTurtleOutput() 
+                else:
+                    DOMOutput.is_animating = False
+                    DOMOutput.flush_buffer()
+                    window.setRunningState(False)
+                    
+            except Exception as e:
+                traceback.print_exc()
+                DOMOutput.is_animating = False
+                DOMOutput.flush_buffer()
+                window.setRunningState(False)
+                
+                err_line = None
+                if hasattr(e, 'lineno') and e.lineno is not None:
+                    err_line = e.lineno
+                else:
+                    tb = e.__traceback__
+                    while tb is not None:
+                        filename = tb.tb_frame.f_code.co_filename
+                        if filename in ('<string>', '__main__', '<module>'):
+                            err_line = tb.tb_lineno
+                        tb = tb.tb_next
+                
+                if err_line is not None:
+                    if mapper_has_input:
+                        err_line = err_line - 2 
+                    if err_line > 0:
+                        window.highlightErrorLine(err_line)
 
-        const divider = document.getElementById('divider');
-        const container = document.getElementById('container');
-        const codeSection = document.getElementById('code-section');
-        const outputArea = document.getElementById('output-area');
-        let isResizing = false;
+        def handle_click(event):
+            if window.isRunning:
+                window.stopExecution()
+                return
+            aio.run(run_code())
 
-        divider.addEventListener('mousedown', () => {
-            isResizing = true;
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (!isResizing) return;
-
-            const containerRect = container.getBoundingClientRect();
-            const newCodeWidth = e.clientX - containerRect.left;
-            const containerWidth = containerRect.width;
-            const dividerWidth = 6;
-
-            if (newCodeWidth > 200 && newCodeWidth < containerWidth - 200) {
-                codeSection.style.flex = `0 0 ${newCodeWidth}px`;
-                divider.style.flex = `0 0 ${dividerWidth}px`;
-                outputArea.style.flex = `1`;
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            isResizing = false;
-        });
-
-        window.addEventListener('load', () => brython({ debug: 0 }));
-        })();
+        document["run-btn"].bind("click", handle_click)
     </script>
 </body>
 </html>
