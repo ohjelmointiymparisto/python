@@ -63,15 +63,38 @@
             padding: 0;
             height: 100vh;
         }
-        textarea {
+        #editor-wrapper {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            border: 1px solid #ccc;
+            border-radius: 0;
+        }
+        #line-numbers {
+            flex: 0 0 40px;
+            padding: 15px 8px 15px 15px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 16px;
+            line-height: normal;
+            color: #999;
+            background-color: #fafafa;
+            border-right: 1px solid #e0e0e0;
+            text-align: right;
+            overflow: hidden;
+            user-select: none;
+            white-space: pre;
+        }
+        textarea#code {
             flex: 1;
             font-family: 'Courier New', Courier, monospace;
             font-size: 16px;
+            line-height: normal;
             padding: 15px;
-            border: 1px solid #ccc;
+            border: none;
             border-radius: 0;
             resize: none;
             box-shadow: none;
+            outline: none;
         }
         #divider {
             width: 6px;
@@ -93,6 +116,9 @@
             background-color: #ffffff;
             box-shadow: none;
             overflow: hidden;
+            display: none;
+        }
+        #turtle-div.visible {
             display: flex;
         }
         #turtle-div svg {
@@ -118,6 +144,10 @@
             font-size: 16px;
             color: #333;
         }
+        #console-output.full-height {
+            flex: 1;
+            border-top: 1px solid #ccc;
+        }
         .share-url-container {
             position: fixed;
             left: 0;
@@ -142,20 +172,23 @@
         }
     </style>
 </head>
-<body onload="brython()">
+<body>
     <div id="container">
         <div id="code-section">
             <div id="button-area">
-                <button id="run-btn" onclick="runPython()">Suorita</button>
-                <button id="stop-btn" onclick="stopPython()">Pysäytä</button>
-                <button id="share-btn" type="button" onclick="shareSnippet()">Jaa (kopioi linkki)</button>
+                <button id="run-btn">Suorita</button>
+                <button id="stop-btn">Pysäytä</button>
+                <button id="share-btn" type="button">Jaa (kopioi linkki)</button>
             </div>
-            <textarea id="code" placeholder="Koodi tähän..."></textarea>
+            <div id="editor-wrapper">
+                <div id="line-numbers" aria-hidden="true">1</div>
+                <textarea id="code" placeholder="Koodi tähän..."></textarea>
+            </div>
         </div>
         <div id="divider"></div>
         <div id="output-area">
             <div id="turtle-div"></div>
-            <div id="console-output"></div>
+            <div id="console-output" class="full-height"></div>
         </div>
     </div>
     <div class="share-url-container">
@@ -163,11 +196,97 @@
         <span id="share-url"></span>
     </div>
     <script>
+        (function () {
+        if (window.__pythonEditorInitialized) return;
+        window.__pythonEditorInitialized = true;
+
         const SUPABASE_URL = "https://dedytnfmdjtfabqxkjcv.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_xR2GR31GRTy7rkEpWGVsZw_lxLAgNfO";
         
         const supabaseClient = window.supabase ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
         let pendingRunTimer = null;
+        const INDENT = '    ';
+
+        function updateLineNumbers() {
+            const codeArea = document.getElementById('code');
+            const lineNumbers = document.getElementById('line-numbers');
+            if (!codeArea || !lineNumbers) return;
+            const count = codeArea.value.split('\n').length;
+            lineNumbers.textContent = Array.from({ length: count }, (_, i) => i + 1).join('\n');
+        }
+
+        function syncLineNumberScroll() {
+            const codeArea = document.getElementById('code');
+            const lineNumbers = document.getElementById('line-numbers');
+            if (codeArea && lineNumbers) {
+                lineNumbers.scrollTop = codeArea.scrollTop;
+            }
+        }
+
+        function getSelectedLineRange(textarea) {
+            const value = textarea.value;
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+            const lineEndIndex = value.indexOf('\n', end);
+            const lineEnd = lineEndIndex === -1 ? value.length : lineEndIndex;
+            return { lineStart, lineEnd };
+        }
+
+        function initEditor() {
+            const codeArea = document.getElementById('code');
+            if (!codeArea) return;
+
+            codeArea.addEventListener('input', updateLineNumbers);
+            codeArea.addEventListener('scroll', syncLineNumberScroll);
+
+            codeArea.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const { lineStart, lineEnd } = getSelectedLineRange(codeArea);
+                    const block = codeArea.value.substring(lineStart, lineEnd);
+
+                    if (e.shiftKey) {
+                        const dedented = block.split('\n').map((line) => {
+                            if (line.startsWith(INDENT)) return line.slice(INDENT.length);
+                            if (line.startsWith('\t')) return line.slice(1);
+                            return line;
+                        }).join('\n');
+                        codeArea.setRangeText(dedented, lineStart, lineEnd, 'select');
+                    } else if (codeArea.selectionStart !== codeArea.selectionEnd) {
+                        const indented = block.split('\n').map((line) => INDENT + line).join('\n');
+                        codeArea.setRangeText(indented, lineStart, lineEnd, 'select');
+                    } else {
+                        const pos = codeArea.selectionStart;
+                        codeArea.setRangeText(INDENT, pos, pos, 'end');
+                    }
+                    updateLineNumbers();
+                    return;
+                }
+
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    const pos = codeArea.selectionStart;
+                    const value = codeArea.value;
+                    const lineStart = value.lastIndexOf('\n', pos - 1) + 1;
+                    const currentLine = value.substring(lineStart, pos);
+                    const baseIndent = currentLine.match(/^\s*/)[0];
+                    let newIndent = baseIndent;
+                    if (currentLine.trimEnd().endsWith(':')) {
+                        newIndent = baseIndent + INDENT;
+                    }
+                    e.preventDefault();
+                    codeArea.setRangeText('\n' + newIndent, pos, codeArea.selectionEnd, 'end');
+                    updateLineNumbers();
+                }
+            });
+
+            updateLineNumbers();
+        }
+
+        function codeUsesTurtle(code) {
+            return /\b(import\s+turtle|from\s+turtle\b|turtle\s*\.)/.test(code);
+        }
+
 function generateShareId() {
     const bytes = new Uint8Array(16);
     window.crypto.getRandomValues(bytes);
@@ -207,18 +326,25 @@ function generateShareId() {
 
             window.__turtleStopRequested = false;
 
+            const outputArea = document.getElementById('output-area');
             const turtleDiv = document.getElementById('turtle-div');
-            turtleDiv.innerHTML = '';
-            document.getElementById('console-output').innerHTML = '';
-            
+            const consoleOutput = document.getElementById('console-output');
             const code = document.getElementById('code').value;
-            const turtleWidth = Math.max(1, turtleDiv.clientWidth || 600);
-            const turtleHeight = Math.max(1, turtleDiv.clientHeight || 600);
-            
-            const prependedSetupCode = `
+            const usesTurtle = codeUsesTurtle(code);
+
+            turtleDiv.classList.toggle('visible', usesTurtle);
+            consoleOutput.classList.toggle('full-height', !usesTurtle);
+            turtleDiv.innerHTML = '';
+            consoleOutput.innerHTML = '';
+
+            const turtleWidth = Math.max(1, outputArea.clientWidth || 600);
+            const turtleHeight = usesTurtle
+                ? Math.max(1, Math.floor(outputArea.clientHeight / 2) || 300)
+                : 600;
+
+            const baseSetupCode = `
 import sys
 from browser import document, window, aio
-import turtle
 
 class PageOutput:
     def __init__(self, element_id):
@@ -231,7 +357,20 @@ class PageOutput:
     def flush(self):
         pass
 
+class PageErrorOutput:
+    def write(self, text):
+        el = document['console-output']
+        el.innerHTML += '<span style="color:#c0392b">' + str(text).replace('\\n', '<br>') + '</span>'
+    
+    def flush(self):
+        pass
+
 sys.stdout = PageOutput('console-output')
+sys.stderr = PageErrorOutput()
+`;
+
+            const turtleSetupCode = usesTurtle ? `
+import turtle
 
 turtle.set_defaults(
     canvwidth=${turtleWidth},
@@ -257,20 +396,29 @@ if not hasattr(turtle, '_patched_for_sync'):
             return None
         return _orig_done()
     turtle.done = _done_wrapper
+` : '';
 
+            const wrapperStartCode = `
 async def __wrapper_execution_scope():
     try:
 `;
 
-            const appendedCleanupCode = `
+            const turtleCleanupCode = usesTurtle ? `
         await aio.sleep(0.05)
         await _wait_for_turtle_animations()
         turtle.done()
-    except Exception as e:
-        sys.stderr.write(str(e))
+` : '';
+
+            const wrapperEndCode = `
+    except Exception:
+        import traceback
+        sys.stderr.write(traceback.format_exc())
 
 aio.run(__wrapper_execution_scope())
 `;
+
+            const prependedSetupCode = baseSetupCode + turtleSetupCode + wrapperStartCode;
+            const appendedCleanupCode = turtleCleanupCode + wrapperEndCode;
 
             const indentedUserCode = code.split('\n').map(line => '        ' + line).join('\n');
             const fullCode = prependedSetupCode + indentedUserCode + appendedCleanupCode;
@@ -369,10 +517,19 @@ aio.run(__wrapper_execution_scope())
                 } else {
                     codeArea.value = data.code;
                 }
+                updateLineNumbers();
             }
         }
 
-        loadSnippetFromURL();
+        function initApp() {
+            initEditor();
+            document.getElementById('run-btn').addEventListener('click', runPython);
+            document.getElementById('stop-btn').addEventListener('click', stopPython);
+            document.getElementById('share-btn').addEventListener('click', shareSnippet);
+            loadSnippetFromURL();
+        }
+
+        initApp();
 
         const divider = document.getElementById('divider');
         const container = document.getElementById('container');
@@ -402,6 +559,9 @@ aio.run(__wrapper_execution_scope())
         document.addEventListener('mouseup', () => {
             isResizing = false;
         });
+
+        window.addEventListener('load', () => brython({ debug: 0 }));
+        })();
     </script>
 </body>
 </html>
