@@ -6,7 +6,7 @@
     <title>Python 3</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.0/brython.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.0/brython_stdlib.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
@@ -64,8 +64,9 @@
             flex-direction: column;
         }
         #editor-container {
-            flex: 1;
             width: 100%;
+            height: 100%;
+            flex: 1;
         }
         .error-line-highlight {
             background: rgba(217, 56, 30, 0.12) !important;
@@ -94,7 +95,7 @@
             transition: background-color 0.15s;
             z-index: 10;
             display: none; 
-        }
+         }
         #resizer-h:hover, .resizing-h #resizer-h { background-color: #0e639c; }
         #right-pane {
             flex: 1;
@@ -162,7 +163,7 @@
             width: 1ch; 
             min-width: 1ch;
             caret-color: transparent; 
-        }
+         }
         .terminal-thick-cursor {
             display: inline-block;
             width: 8px; 
@@ -210,6 +211,7 @@
             box-sizing: border-box;
             padding: 0 20px;
             flex-shrink: 0;
+            transition: background-color 0.4s ease;
         }
         #share-link-text { font-weight: 600; color: #0e639c; margin-left: 6px; user-select: all; }
         @media (max-width: 768px) {
@@ -228,6 +230,8 @@
         const SUPABASE_URL = "https://dedytnfmdjtfabqxkjcv.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_xR2GR31GRTy7rkEpWGVsZw_lxLAgNfO";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        const SUPABASE_TABLE_NAME = "snippets"; 
 
         window.turtleTimer = null;
         window.isRunning = false;
@@ -235,13 +239,11 @@
         window.currentInputResolver = null;
         window.currentInputWrapper = null;
         window.currentDecorations = [];
-
         window.setRunningState = function(running) {
             window.isRunning = running;
             const runBtn = document.getElementById('run-btn');
             runBtn.innerText = running ? 'Pysäytä' : 'Suorita';
         };
-
         window.toggleTurtleCanvas = function(show) {
             const turtleDiv = document.getElementById('turtle-div');
             const resizerH = document.getElementById('resizer-h');
@@ -253,10 +255,9 @@
                 }
             } else {
                 turtleDiv.style.display = 'none';
-                resizerH.style.display = 'none';
+                resizerH.style.none = 'block';
             }
         };
-
         window.highlightErrorLine = function(lineNum) {
             if (!window.editor || lineNum < 1) return;
             window.currentDecorations = window.editor.deltaDecorations(window.currentDecorations, [
@@ -269,13 +270,11 @@
                 }
             ]);
         };
-
         window.clearErrorHighlights = function() {
             if (window.editor && window.currentDecorations.length > 0) {
                 window.currentDecorations = window.editor.deltaDecorations(window.currentDecorations, []);
             }
         };
-
         window.stopExecution = function() {
             clearTimeout(window.turtleTimer);
             const canvas = document.getElementById('turtle-div');
@@ -288,11 +287,9 @@
                 window.currentInputWrapper = null;
                 window.currentInputResolver = null;
             }
-
             if (window.abort_buffer) window.abort_buffer();
             window.setRunningState(false);
         };
-
         window.requestInlineInput = function(promptText) {
             return new Promise((resolve) => {
                 const outNode = document.getElementById('console-output');
@@ -305,7 +302,6 @@
                     }
                     outNode.appendChild(document.createTextNode(standardPrompt));
                 }
-
                 const rowContainer = document.createElement('div');
                 rowContainer.className = 'terminal-input-row-container';
                 
@@ -318,26 +314,20 @@
                 inputField.className = 'terminal-inline-input';
                 inputField.autocomplete = 'off';
                 inputField.spellcheck = false;
-
                 const customThickCursor = document.createElement('span');
                 customThickCursor.className = 'terminal-thick-cursor';
-
                 rowContainer.appendChild(caretPrefix);
                 rowContainer.appendChild(inputField);
                 rowContainer.appendChild(customThickCursor);
                 outNode.appendChild(rowContainer);
-
                 logArea.scrollTop = logArea.scrollHeight;
                 setTimeout(() => inputField.focus(), 20);
-
                 window.currentInputResolver = resolve;
                 window.currentInputWrapper = rowContainer;
-
                 inputField.addEventListener('input', function() {
                     inputField.style.width = Math.max(1, inputField.value.length) + 'ch';
                     logArea.scrollTop = logArea.scrollHeight;
                 });
-
                 inputField.addEventListener('keydown', function(event) {
                     if (event.key === 'Enter') {
                         const val = inputField.value;
@@ -353,7 +343,6 @@
                         const textSpan = document.createElement('span');
                         textSpan.className = 'user-submitted-span';
                         textSpan.innerText = val;
-
                         historyRow.appendChild(historyPrefix);
                         historyRow.appendChild(textSpan);
                         outNode.appendChild(historyRow);
@@ -368,7 +357,6 @@
                 });
             });
         };
-
         const parseDur = (str) => {
             if (!str) return 0;
             const val = parseFloat(str);
@@ -376,25 +364,21 @@
             if (str.toLowerCase().endsWith('ms')) return val;
             if (str.toLowerCase().endsWith('s')) return val * 1000;
             return val * 1000; 
-        };
-
+         };
         window.syncTurtleOutput = function() {
             setTimeout(() => {
                 const canvas = document.getElementById('turtle-div');
                 if (!canvas) return;
-
                 const animations = canvas.querySelectorAll('animate, animateTransform, animateMotion, set');
                 if (animations.length === 0) {
                     if (window.trigger_flush) window.trigger_flush();
                     window.setRunningState(false);
                     return;
                 }
-
                 let totalCumulativeDuration = 0;
                 animations.forEach(anim => {
                     totalCumulativeDuration += parseDur(anim.getAttribute('dur'));
                 });
-
                 let eventFired = false;
                 const completeExecution = () => {
                     if (!eventFired) {
@@ -404,21 +388,17 @@
                         window.setRunningState(false);
                     }
                 };
-
                 const lastAnimation = animations[animations.length - 1];
                 lastAnimation.addEventListener('endEvent', completeExecution);
                 lastAnimation.addEventListener('end', completeExecution); 
-
                 clearTimeout(window.turtleTimer);
                 window.turtleTimer = setTimeout(completeExecution, totalCumulativeDuration + 100);
             }, 20);
         };
-
         window.clearConsole = function() {
             const consoleOut = document.getElementById('console-output');
             if (consoleOut) consoleOut.innerHTML = '';
         };
-
         function toggleMobileView() {
             const workspace = document.getElementById('workspace');
             if (workspace.classList.contains('mobile-show-editor')) {
@@ -430,6 +410,45 @@
                 if (window.editor) { setTimeout(() => window.editor.layout(), 10); }
             }
         }
+        
+        async function handleShareCode() {
+            if (!window.editor) return;
+            const userCode = window.editor.getValue();
+            const footer = document.getElementById('footer');
+            
+            if (!userCode.trim()) {
+                footer.innerText = "Kirjoita ensin koodia jaettavaksi!";
+                return;
+            }
+            
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            let tunnus = '';
+            for (let i = 0; i < 30; i++) {
+                tunnus += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            
+            try {
+                const { error } = await supabaseClient
+                    .from(SUPABASE_TABLE_NAME)
+                    .insert([{ code: userCode, tunnus: tunnus }]);
+                
+                if (error) throw error;
+                
+                const shareUrl = `${window.location.origin}${window.location.pathname}?tunnus=${tunnus}`;
+                await navigator.clipboard.writeText(shareUrl);
+                
+                footer.innerHTML = `Linkki kopioitu leikepöydälle: <a href="${shareUrl}" target="_blank" style="color: #0e639c; text-decoration: underline; font-weight: 600; margin-left: 5px;">${shareUrl}</a>`;
+                
+                footer.style.backgroundColor = '#e0f2fe'; 
+                setTimeout(() => {
+                    footer.style.backgroundColor = '#fcfcfc'; 
+                }, 400);
+
+            } catch (err) {
+                console.error("Virhe tallennuksessa:", err);
+                footer.innerText = "Virhe tallennettaessa koodia tietokantaan.";
+            }
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             const resizerV = document.getElementById('resizer-v');
@@ -438,13 +457,14 @@
             const turtleDiv = document.getElementById('turtle-div');
             const workspace = document.getElementById('workspace');
             const rightPane = document.getElementById('right-pane');
-
             workspace.classList.add('mobile-show-editor');
-
+            
             document.getElementById('console-log-area').addEventListener('click', () => {
                 const activeInputField = document.querySelector('.terminal-inline-input');
                 if (activeInputField) { activeInputField.focus(); }
             });
+            
+            document.getElementById('share-btn').addEventListener('click', handleShareCode);
 
             resizerV.addEventListener('mousedown', (e) => {
                 e.preventDefault();
@@ -464,7 +484,6 @@
                 document.removeEventListener('mousemove', handleMouseMoveV);
                 document.removeEventListener('mouseup', handleMouseUpV);
             }
-
             resizerH.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 workspace.classList.add('resizing-h');
@@ -482,13 +501,35 @@
                 document.removeEventListener('mousemove', handleMouseMoveH);
                 document.removeEventListener('mouseup', handleMouseUpH);
             }
-
             document.getElementById('switch-btn').addEventListener('click', toggleMobileView);
             
             require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
-            require(['vs/editor/editor.main'], function() {
+            require(['vs/editor/editor.main'], async function() {
                 const urlParams = new URLSearchParams(window.location.search);
-                const initialCode = urlParams.get('code') || '';
+                const tunnusParam = urlParams.get('tunnus');
+                let initialCode = '';
+                
+                if (tunnusParam) {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from(SUPABASE_TABLE_NAME)
+                            .select('code')
+                            .eq('tunnus', tunnusParam)
+                            .maybeSingle();
+                        
+                        if (error) throw error;
+                        if (data) {
+                            initialCode = data.code;
+                        } else {
+                            initialCode = '# Virhe: Koodia ei löytynyt annetulla tunnuksella.';
+                        }
+                    } catch (err) {
+                        console.error("Virhe koodin haussa:", err);
+                        initialCode = '# Virhe ladattaessa koodia tietokannasta.';
+                    }
+                } else {
+                    initialCode = urlParams.get('code') || '';
+                }
 
                 window.editor = monaco.editor.create(document.getElementById('editor-container'), {
                     value: initialCode,
@@ -498,7 +539,6 @@
                     fontSize: 17.5, 
                     minimap: { enabled: false }
                 });
-
                 window.editor.onDidChangeModelContent(() => {
                     window.clearErrorHighlights();
                 });
@@ -507,7 +547,6 @@
     </script>
 </head>
 <body onload="brython()">
-
     <div id="button-bar">
         <div class="button-cluster">
             <button id="run-btn" class="top-btn">Suorita</button>
@@ -515,14 +554,11 @@
             <button id="switch-btn" class="top-btn">Vaihda näkymää</button>
         </div>
     </div>
-
     <div id="workspace">
         <div id="left-pane">
             <div id="editor-container"></div>
         </div>
-
         <div id="resizer-v"></div>
-
         <div id="right-pane">
             <div id="turtle-div"></div>
             <div id="resizer-h"></div>
@@ -535,8 +571,7 @@
             </div>
         </div>
     </div>
-
-    <div id="footer">&copy;&nbsp;<a href="https://toivo.pages.dev" target="_blank">Toivo Muukkonen</a>&nbsp;2026</div>
+    <div id="footer">&copy;&nbsp;<a href="https://toivo.pages.dev" target="_blank">Toivo Muukkonen</a>&nbsp;+&nbsp;AI&nbsp;2026</div>
 
     <script type="text/python">
         from browser import document, window, aio, html
@@ -547,17 +582,14 @@
         class DOMOutput:
             buffer = []
             is_animating = False
-
             def __init__(self, element_id, is_error=False):
                 self.element = document[element_id]
                 self.is_error = is_error
-
             def write(self, text):
                 if DOMOutput.is_animating:
                     DOMOutput.buffer.append({'text': text, 'is_error': self.is_error, 'element': self.element})
                 else:
                     self._direct_write(text)
-
             def _direct_write(self, text):
                 if self.is_error:
                     self.element <= html.SPAN(str(text), Class="error-text")
@@ -565,7 +597,6 @@
                     self.element <= str(text)
                 log_area = document["console-log-area"]
                 log_area.scrollTop = log_area.scrollHeight
-
             @staticmethod
             def flush_buffer():
                 for item in DOMOutput.buffer:
@@ -583,7 +614,6 @@
         def trigger_flush():
             DOMOutput.is_animating = False
             DOMOutput.flush_buffer()
-
         def abort_buffer():
             DOMOutput.is_animating = False
             DOMOutput.buffer.clear()
@@ -596,13 +626,11 @@
                 self.has_input = False
                 self.func_names = set()
                 self.mods = []
-
             def visit_Call(self, node):
                 if isinstance(node.func, ast.Name) and node.func.id == 'input':
                     self.has_input = True
                     self.mods.append((node.func.lineno, node.func.col_offset, node.func.end_lineno, node.func.end_col_offset, "await __custom_async_input__"))
                 self.generic_visit(node)
-
             def visit_FunctionDef(self, node):
                 self.func_names.add(node.name)
                 self.mods.append((node.lineno, node.col_offset, node.lineno, node.col_offset + 3, "async def"))
@@ -612,10 +640,9 @@
             def __init__(self, func_names, mods):
                 self.func_names = func_names
                 self.mods = mods
-
             def visit_Call(self, node):
                 if isinstance(node.func, ast.Name) and node.func.id in self.func_names:
-                    self.mods.append((node.func.lineno, node.func.col_offset, node.func.lineno, node.func.col_offset, "await "))
+                    self.mods.append((node.func.lineno, node.func.col_offset, node.lineno, node.col_offset, "await "))
                 self.generic_visit(node)
 
         def apply_string_modifications(source_text, modifications):
@@ -647,6 +674,14 @@
             
             try:
                 setup = (
+                    "import sys\n"
+                    "if 'turtle' in sys.modules:\n"
+                    "    try:\n"
+                    "        import turtle\n"
+                    "        turtle._screen = None\n"
+                    "    except:\n"
+                    "        pass\n"
+                    "    del sys.modules['turtle']\n"
                     "from browser import document\n"
                     "import turtle\n"
                     "turtle.set_defaults(turtle_canvas_wrapper=document['turtle-div'])\n"
@@ -657,7 +692,6 @@
                     if DOMOutput.is_animating: DOMOutput.flush_buffer()
                     res = await window.requestInlineInput(str(prompt_msg))
                     return res
-
                 runtime_globals['__custom_async_input__'] = __custom_async_input__
                 
                 if user_code.strip():
@@ -684,7 +718,6 @@
                             elif isinstance(node, ast.For):
                                 if isinstance(node.target, ast.Name):
                                     top_level_vars.add(node.target.id)
-
                         transformed_source = apply_string_modifications(user_code, mapper.mods)
                         indented_body = "\n".join("    " + line for line in transformed_source.splitlines())
                         
@@ -700,7 +733,6 @@
                         await runtime_globals['__main__']()
                     else:
                         exec(user_code, runtime_globals)
-
                 if "turtle" in runtime_globals:
                     exec("turtle.done()", runtime_globals)
                     window.syncTurtleOutput() 
@@ -725,7 +757,7 @@
                         if filename in ('<string>', '__main__', '<module>'):
                             err_line = tb.tb_lineno
                         tb = tb.tb_next
-                
+                        
                 if err_line is not None:
                     if mapper_has_input:
                         err_line = err_line - 2 
