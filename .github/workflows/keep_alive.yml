@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Send Wakeup Call to Supabase
         run: |
-          curl -X POST "https://dedytnfmdjtfabqxkjcv.supabase.co/rest/v1/shared_code" \
+          curl -X POST "https://dedytnfmdjtfabqxkjcv.supabase.co/rest/v1/snippets" \
           -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
           -H "Content-Type: application/json" \
