@@ -2,17 +2,18 @@ name: Keep Supabase Awake
 
 on:
   schedule:
-    - cron: '0 0 * * 0,4'
+    - cron: '0 0 */3 * *'
   workflow_dispatch: 
+
 jobs:
   ping_db:
     runs-on: ubuntu-latest
     steps:
-      - name: Send Wakeup Call to Supabase
+      - name: Update Keep Alive Table
         run: |
-          curl -i -X POST "https://dedytnfmdjtfabqxkjcv.supabase.co/rest/v1/snippets" \
+          curl -i -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/keep_alive" \
           -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
           -H "Content-Type: application/json" \
           -H "Prefer: resolution=merge-duplicates" \
-          -d '{"tunnus": "KEEP_ALIVE_PING", "code_text": "print(\"stayin alive\")"}'
+          -d '{"id": 1, "last_ping": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"}'
